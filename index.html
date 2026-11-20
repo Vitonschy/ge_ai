@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Touching Sounds</title>
+  <script defer src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --ink: #172c26;
+      --green: #9bbc0f;
+      --green-mid: #8bac0f;
+      --green-dark: #306230;
+      --cream: #f3ecc7;
+      --shadow: #5b6942;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      min-height: 100%;
+      margin: 0;
+      background: var(--ink);
+      color: var(--ink);
+      font-family: "Courier New", monospace;
+    }
+
+    button, input { font: inherit; }
+
+    button {
+      min-height: 44px;
+      border: 3px solid var(--ink);
+      border-radius: 0;
+      background: var(--cream);
+      color: var(--ink);
+      font-weight: 900;
+      box-shadow: 4px 4px 0 var(--ink);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button:active {
+      transform: translate(3px, 3px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+
+    .screen {
+      min-height: 100vh;
+      padding: clamp(12px, 2vw, 24px);
+      background:
+        repeating-linear-gradient(0deg, rgba(23,44,38,.08) 0, rgba(23,44,38,.08) 2px, transparent 2px, transparent 4px),
+        var(--green);
+    }
+
+    .hidden { display: none !important; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 6px 10px;
+      border: 3px solid var(--ink);
+      background: var(--cream);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      margin-right: 8px;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background: #d8af37;
+    }
+
+    .status.connected .status-dot { background: #31a55a; }
+    .status.waiting .status-dot { background: #d8af37; }
+    .status.disconnected .status-dot { background: #b84a48; }
+
+    .status-row button { margin-left: auto; padding: 6px 12px; }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 5vw, 44px);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-shadow: 3px 3px 0 var(--green-dark);
+    }
+
+    .computer-layout {
+      display: grid;
+      grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+      gap: clamp(12px, 2vw, 24px);
+    }
+
+    .side-panel {
+      min-height: 560px;
+      padding: 16px;
+      border: 5px solid var(--ink);
+      background: var(--green-mid);
+      box-shadow: 8px 8px 0 var(--green-dark);
+    }
+
+    #qr {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      width: 100%;
+      margin: 14px 0;
+      padding: 10px;
+      border: 4px solid var(--ink);
+      background: white;
+    }
+
+    #qr img, #qr canvas {
+      max-width: 100%;
+      height: auto !important;
+    }
+
+    .join-url {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      margin-top: 10px;
+      color: var(--ink);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+    }
+
+    .main-panel {
+      min-width: 0;
+      border: 5px solid var(--ink);
+      background: var(--ink);
+      box-shadow: 8px 8px 0 var(--green-dark);
+    }
+
+    .canvas-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 56px;
+      padding: 8px 12px;
+      color: var(--green);
+      background: var(--ink);
+    }
+
+    .canvas-head strong { letter-spacing: 2px; }
+
+    #canvasWrap {
+      width: 100%;
+      background: var(--green);
+      border-top: 4px solid var(--ink);
+    }
+
+    #sequencer {
+      display: block;
+      width: 100%;
+      height: clamp(360px, 68vh, 620px);
+      touch-action: manipulation;
+    }
+
+    .roster {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .player-card {
+      min-width: 0;
+      padding: 8px;
+      border: 3px solid var(--ink);
+      background: var(--cream);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      margin-right: 5px;
+      border: 2px solid var(--ink);
+      vertical-align: -3px;
+    }
+
+    /* PHONE */
+    .phone-screen {
+      max-width: 560px;
+      min-height: 100vh;
+      margin: 0 auto;
+    }
+
+    .phone-card {
+      border: 5px solid var(--ink);
+      background: var(--green-mid);
+      box-shadow: 7px 7px 0 var(--green-dark);
+    }
+
+    .identity {
+      display: grid;
+      grid-template-columns: 84px 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 4px solid var(--ink);
+    }
+
+    .identity-swatch {
+      width: 84px;
+      height: 84px;
+      border: 4px solid var(--ink);
+      box-shadow: inset 0 0 0 8px rgba(255,255,255,.18);
+    }
+
+    .identity h2 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      text-transform: uppercase;
+    }
+
+    .identity p { margin: 4px 0; }
+
+    .phone-tools {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .phone-tools button { width: 100%; }
+
+    .step-controls {
+      display: grid;
+      grid-template-columns: 52px 52px 52px;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 12px 12px;
+    }
+
+    .step-controls button { width: 52px; height: 52px; padding: 0; }
+
+    .step-readout {
+      display: grid;
+      place-items: center;
+      border: 3px solid var(--ink);
+      background: var(--cream);
+      font-weight: 900;
+    }
+
+    .phone-grid-wrap {
+      overflow: auto;
+      max-height: 48vh;
+      padding: 12px;
+      border-top: 4px solid var(--ink);
+      background: var(--ink);
+      overscroll-behavior: contain;
+    }
+
+    #phoneGrid {
+      display: grid;
+      grid-template-columns: repeat(32, 44px);
+      grid-template-rows: repeat(16, 44px);
+      width: max-content;
+      border-top: 2px solid var(--green);
+      border-left: 2px solid var(--green);
+      touch-action: manipulation;
+    }
+
+    .phone-pixel {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border: 1px solid var(--green-dark);
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .phone-pixel:active {
+      transform: none;
+      box-shadow: none;
+      filter: brightness(.75);
+    }
+
+    .phone-pixel.on { border-color: var(--ink); }
+
+    .phone-now {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 12px;
+      border: 3px solid var(--ink);
+      background: var(--cream);
+      font-weight: 900;
+      text-align: center;
+    }
+
+    @media (max-width: 820px) {
+      .computer-layout { grid-template-columns: 1fr; }
+      .side-panel { min-height: 0; }
+      #qr { max-width: 220px; margin-inline: auto; }
+      .side-panel h1 { font-size: 24px; }
+      .roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #sequencer { height: 48vh; min-height: 300px; }
+    }
+
+    @media (max-width: 420px) {
+      .screen { padding: 8px; }
+      .status-row { gap: 6px; }
+      .status { font-size: 11px; }
+      .status-row button { font-size: 12px; }
+      .identity { grid-template-columns: 68px 1fr; }
+      .identity-swatch { width: 68px; height: 68px; }
+      .phone-grid-wrap { max-height: 43vh; }
+    }
+  </style>
+</head>
+<body>
+  <main id="computer" class="screen hidden" role="main">
+    <div class="status-row">
+      <div id="computerStatus" class="status waiting" role="status" aria-live="polite">
+        <span class="status-dot"></span><span id="computerStatusText">WAITING</span>
+      </div>
+      <button id="computerReconnect" type="button">RECONNECT</button>
+    </div>
+
+    <div class="computer-layout">
+      <aside class="side-panel">
+        <h1>Touching<br>Sounds</h1>
+        <div id="qr" aria-label="QR code for phone join link"></div>
+        <button id="startSound" type="button">START SOUND</button>
+        <a id="joinUrl" class="join-url" target="_blank" rel="noopener">JOIN URL</a>
+        <div id="roster" class="roster" aria-label="Connected players"></div>
+      </aside>
+
+      <section class="main-panel" aria-label="Shared sequencer">
+        <header class="canvas-head">
+          <strong>8 BARS / 120 BPM</strong>
+          <span id="beatReadout">STEP 01</span>
+        </header>
+        <div id="canvasWrap">
+          <canvas id="sequencer" aria-label="Eight bar pixel sequencer"></canvas>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <main id="phone" class="screen phone-screen hidden" role="main">
+    <div class="status-row">
+      <div id="phoneStatus" class="status waiting" role="status" aria-live="polite">
+        <span class="status-dot"></span><span id="phoneStatusText">WAITING</span>
+      </div>
+      <button id="phoneReconnect" type="button">RECONNECT</button>
+    </div>
+
+    <section class="phone-card">
+      <header class="identity">
+        <div id="identitySwatch" class="identity-swatch"></div>
+        <div>
+          <h2 id="playerName">PLAYER</h2>
+          <p id="soundName">SELECTING...</p>
+          <p id="pitchName">TAP PIXEL TO SOUND</p>
+        </div>
+      </header>
+
+      <div class="phone-tools">
+        <button id="clearMyPixels" type="button">CLEAR MY NOTES</button>
+        <button id="phoneStartSound" type="button">START</button>
+      </div>
+
+      <div class="step-controls" aria-label="Step controls">
+        <button id="previousStep" type="button" aria-label="Previous step">-</button>
+        <div id="stepReadout" class="step-readout">01</div>
+        <button id="nextStep" type="button" aria-label="Next step">+</button>
+      </div>
+
+      <div id="phoneGridWrap" class="phone-grid-wrap">
+        <div id="phoneGrid" aria-label="Pixel selection grid"></div>
+      </div>
+      <div id="phoneNow" class="phone-now">SELECT A PIXEL</div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      // A 32-column score represents 8 bars of 4 steps.
+      const COLS = 32;
+      const ROWS = 16;
+      const BPM = 120;
+      const STEP_MS = 60000 / BPM / 2; // two score steps per quarter note
+
+      const PALETTE = [
+        { name: "Coral", color: "#ef476f", sound: "Square", wave: "square" },
+        { name: "Sun", color: "#ffd166", sound: "Chiptune", wave: "sawtooth" },
+        { name: "Mint", color: "#06d6a0", sound: "Blip", wave: "square" },
+        { name: "Sky", color: "#118ab2", sound: "Sine Pulse", wave: "sine" },
+        { name: "Violet", color: "#8357e5", sound: "Triangle", wave: "triangle" },
+        { name: "Berry", color: "#f72585", sound: "Soft Square", wave: "square" },
+        { name: "Orange", color: "#f8961e", sound: "Buzz", wave: "sawtooth" },
+        { name: "Blue", color: "#4361ee", sound: "Glass", wave: "triangle" }
+      ];
+
+      const PITCHES = [
+        987.77, 932.33, 880.00, 830.61, 783.99, 739.99, 698.46, 659.25,
+        622.25, 587.33, 553.37, 523.25, 493.88, 466.16, 440.00, 415.30
+      ];
+
+      const joinParam = new URLSearchParams(location.search).get("join");
+      const isPhone = Boolean(joinParam);
+      let roleReady = false;
+
+      function setStatus(side, state, text) {
+        const status = document.getElementById(side + "Status");
+        const label = document.getElementById(side + "StatusText");
+        status.className = "status " + state;
+        label.textContent = text;
+      }
+
+      if (isPhone) {
+        document.getElementById("phone").classList.remove("hidden");
+      } else {
+        document.getElementById("computer").classList.remove("hidden");
+      }
+
+      function waitForDependencies(callback) {
+        if (window.Peer && window.QRCode) {
+          callback();
+          return;
+        }
+        let attempts = 0;
+        const timer = setInterval(() => {
+          attempts++;
+          if (window.Peer && (isPhone || window.QRCode)) {
+            clearInterval(timer);
+            callback();
+          } else if (attempts > 100) {
+            clearInterval(timer);
+            setStatus(isPhone ? "phone" : "computer", "disconnected", "LIBRARY FAILED");
+          }
+        }, 50);
+      }
+
+      function sendJSON(connection, type, payload = {}) {
+        if (!connection || connection.open !== true) return false;
+        connection.send(JSON.stringify({ type, payload }));
+        return true;
+      }
+
+      function receiveJSON(connection, handler) {
+        connection.on("data", data => {
+          try {
+            const message = typeof data === "string" ? JSON.parse(data) : data;
+            if (message && typeof message.type === "string") handler(message);
+          } catch (error) {
+            console.warn("Ignored invalid data message", error);
+          }
+        });
+      }
+
+      function makePeerId() {
+        return "ts-" + Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36);
+      }
+
+      function createJoinUrl(peerId) {
+        const url = new URL(location.href);
+        url.search = "";
+        url.hash = "";
+        url.searchParams.set("join", peerId);
+        return url.toString();
+      }
+
+      // -------------------- COMPUTER ROLE --------------------
+      const computer = {
+        peer: null,
+        connections: new Map(),
+        players: new Map(),
+        grid: Array.from({ length: ROWS }, () => Array(COLS).fill(null)),
+        nextColor: 0,
+        audio: null,
+        master: null,
+        playing: false,
+        step: 0,
+        timer: null
+      };
+
+      function initComputer() {
+        roleReady = true;
+        buildPhoneGrid();
+        resizeCanvas();
+        startSequencer();
+        createHostPeer();
+        window.addEventListener("resize", resizeCanvas);
+        document.getElementById("computerReconnect").addEventListener("click", reconnectComputer);
+        document.getElementById("startSound").addEventListener("click", startComputerAudio);
+        document.getElementById("clearMyPixels").classList.add("hidden");
+      }
+
+      function createHostPeer() {
+        setStatus("computer", "waiting", "WAITING");
+        const peerId = makePeerId();
+
+        computer.peer = new Peer(peerId, {
+          secure: location.protocol === "https:",
+          debug: 1
+        });
+
+        computer.peer.on("open", id => {
+          const joinUrl = createJoinUrl(id);
+          const qrElement = document.getElementById("qr");
+          qrElement.innerHTML = "";
+          new QRCode(qrElement, {
+            text: joinUrl,
+            width: 220,
+            height: 220,
+            correctLevel: QRCode.CorrectLevel.M
+          });
+          const link = document.getElementById("joinUrl");
+          link.href = joinUrl;
+          link.textContent = joinUrl;
+          if (computer.connections.size === 0) setStatus("computer", "waiting", "WAITING");
+        });
+
+        computer.peer.on("connection", connection => {
+          setupHostConnection(connection);
+        });
+
+        computer.peer.on("disconnected", () => setStatus("computer", "disconnected", "DISCONNECTED"));
+        computer.peer.on("error", error => {
+          console.error("Computer PeerJS error:", error);
+          setStatus("computer", "disconnected", "DISCONNECTED");
+        });
+      }
+
+      function reconnectComputer() {
+        if (computer.peer && !computer.peer.destroyed) computer.peer.destroy();
+        computer.connections.forEach(connection => connection.close());
+        computer.connections.clear();
+        computer.players.clear();
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) computer.grid[row][col] = null;
+        }
+        renderRoster();
+        createHostPeer();
+      }
+
+      function setupHostConnection(connection) {
+        connection.on("open", () => {
+          const colorIndex = computer.nextColor % PALETTE.length;
+          computer.nextColor++;
+          const player = {
+            id: connection.peer,
+            name: "PLAYER " + (computer.nextColor),
+            colorIndex,
+            connected: true
+          };
+          computer.connections.set(connection.peer, connection);
+          computer.players.set(connection.peer, player);
+          setStatus("computer", "connected", "CONNECTED " + computer.players.size);
+          renderRoster();
+
+          sendJSON(connection, "welcome", {
+            player,
+            grid: computer.grid,
+            palette: PALETTE,
+            cols: COLS,
+            rows: ROWS,
+            bpm: BPM
+          });
+          broadcastPlayers();
+        });
+
+        receiveJSON(connection, message => {
+          if (!computer.players.has(connection.peer)) return;
+          if (message.type === "pixel") {
+            const { row, col, active } = message.payload;
+            if (!Number.isInteger(row) || !Number.isInteger(col) ||
+                row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
+            if (active) {
+              computer.grid[row][col] = { owner: connection.peer, colorIndex: computer.players.get(connection.peer).colorIndex };
+            } else if (computer.grid[row][col]?.owner === connection.peer) {
+              computer.grid[row][col] = null;
+            }
+            broadcast({ type: "pixel", payload: { row, col, active, owner: connection.peer,
+              colorIndex: computer.players.get(connection.peer).colorIndex } });
+          } else if (message.type === "clear") {
+            clearPlayerPixels(connection.peer);
+          }
+        });
+
+        connection.on("close", () => removeHostConnection(connection.peer));
+        connection.on("error", error => {
+          console.warn("Host connection error:", error);
+          removeHostConnection(connection.peer);
+        });
+      }
+
+      function removeHostConnection(peerId) {
+        computer.connections.delete(peerId);
+        computer.players.delete(peerId);
+        clearPlayerPixels(peerId);
+        renderRoster();
+        if (computer.connections.size === 0) setStatus("computer", "waiting", "WAITING");
+        else setStatus("computer", "connected", "CONNECTED " + computer.connections.size);
+        broadcastPlayers();
+        broadcastGrid();
+      }
+
+      function clearPlayerPixels(peerId) {
+        let changed = false;
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) {
+            if (computer.grid[row][col]?.owner === peerId) {
+              computer.grid[row][col] = null;
+              changed = true;
+            }
+          }
+        }
+        if (changed) broadcastGrid();
+      }
+
+      function broadcast(message) {
+        computer.connections.forEach(connection => sendJSON(connection, message.type, message.payload));
+      }
+
+      function broadcastGrid() {
+        broadcast({ type: "grid", payload: { grid: computer.grid } });
+      }
+
+      function broadcastPlayers() {
+        const players = Array.from(computer.players.values());
+        broadcast({ type: "players", payload: { players } });
+      }
+
+      function renderRoster() {
+        const roster = document.getElementById("roster");
+        roster.innerHTML = "";
+        computer.players.forEach(player => {
+          const card = document.createElement("div");
+          card.className = "player-card";
+          const palette = PALETTE[player.colorIndex];
+          card.innerHTML = '<span class="swatch" style="background:' + palette.color + '"></span>' +
+            player.name + " · " + palette.sound;
+          roster.appendChild(card);
+        });
+      }
+
+      function startComputerAudio() {
+        if (!computer.audio) {
+          computer.audio = new (window.AudioContext || window.webkitAudioContext)();
+          computer.master = computer.audio.createGain();
+          computer.master.gain.value = 0.22;
+          computer.master.connect(computer.audio.destination);
+        }
+        if (computer.audio.state === "suspended") computer.audio.resume();
+        computer.playing = true;
+        document.getElementById("startSound").textContent = "SOUND ON";
+      }
+
+      function playNote(row, colorIndex) {
+        if (!computer.audio || computer.audio.state !== "running") return;
+        const palette = PALETTE[colorIndex];
+        const now = computer.audio.currentTime;
+        const oscillator = computer.audio.createOscillator();
+        const gain = computer.audio.createGain();
+        oscillator.type = palette.wave;
+        oscillator.frequency.setValueAtTime(PITCHES[row], now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.7, now + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+        oscillator.connect(gain);
+        gain.connect(computer.master);
+        oscillator.start(now);
+        oscillator.stop(now + 0.16);
+      }
+
+      function startSequencer() {
+        clearInterval(computer.timer);
+        computer.timer = setInterval(() => {
+          computer.step = (computer.step + 1) % COLS;
+          const step = computer.step;
+          if (computer.playing) {
+            for (let row = 0; row < ROWS; row++) {
+              const cell = computer.grid[row][step];
+              if (cell) playNote(row, cell.colorIndex);
+            }
+          }
+          document.getElementById("beatReadout").textContent =
+            "STEP " + String(step + 1).padStart(2, "0");
+          drawSequencer();
+        }, STEP_MS);
+      }
+
+      const canvas = document.getElementById("sequencer");
+      const ctx = canvas.getContext("2d");
+
+      function resizeCanvas() {
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawSequencer();
+      }
+
+      function drawSequencer() {
+        if (!canvas || !ctx) return;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const cellWidth = width / COLS;
+        const cellHeight = height / ROWS;
+
+        ctx.fillStyle = "#9bbc0f";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.strokeStyle = "#306230";
+        ctx.lineWidth = 1;
+        for (let col = 0; col <= COLS; col++) {
+          ctx.beginPath();
+          ctx.moveTo(Math.round(col * cellWidth) + 0.5, 0);
+          ctx.lineTo(Math.round(col * cellWidth) + 0.5, height);
+          ctx.stroke();
+        }
+        for (let row = 0; row <= ROWS; row++) {
+          ctx.beginPath();
+          ctx.moveTo(0, Math.round(row * cellHeight) + 0.5);
+          ctx.lineTo(width, Math.round(row * cellHeight) + 0.5);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = "#172c26";
+        ctx.font = "bold 11px monospace";
+        ctx.textAlign = "left";
+        for (let bar = 0; bar < 8; bar++) {
+          ctx.fillText(String(bar + 1).padStart(2, "0"), bar * 4 * cellWidth + 5, 13);
+        }
+
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) {
+            const cell = computer.grid[row][col];
+            if (!cell) continue;
+            ctx.fillStyle = PALETTE[cell.colorIndex].color;
+            ctx.fillRect(col * cellWidth + 2, row * cellHeight + 2,
+              Math.max(1, cellWidth - 4), Math.max(1, cellHeight - 4));
+            ctx.fillStyle = "#172c26";
+            ctx.fillRect(col * cellWidth + cellWidth * 0.25,
+              row * cellHeight + cellHeight * 0.25,
+              Math.max(2, cellWidth * 0.5),
+              Math.max(2, cellHeight * 0.5));
+          }
+        }
+
+        ctx.fillStyle = "#172c26";
+        ctx.fillRect(computer.step * cellWidth - 2, 0, Math.max(4, cellWidth * 0.12), height);
+        ctx.fillStyle = "#f3ecc7";
+        ctx.fillRect(computer.step * cellWidth + 1, 0, 2, height);
+      }
+
+      // -------------------- PHONE ROLE --------------------
+      const phone = {
+        peer: null,
+        connection: null,
+        player: null,
+        grid: Array.from({ length: ROWS }, () => Array(COLS).fill(null)),
+        selectedStep: 0,
+        selectedRow: 7
+      };
+
+      function initPhone() {
+        roleReady = true;
+        buildPhoneGrid();
+        bindPhoneControls();
+        createPhonePeer();
+      }
+
+      function createPhonePeer() {
+        setStatus("phone", "waiting", "CONNECTING");
+        if (phone.peer && !phone.peer.destroyed) phone.peer.destroy();
+
+        phone.peer = new Peer(makePeerId(), {
+          secure: location.protocol === "https:",
+          debug: 1
+        });
+
+        phone.peer.on("open", () => connectToComputer());
+        phone.peer.on("disconnected", () => setStatus("phone", "disconnected", "DISCONNECTED"));
+        phone.peer.on("error", error => {
+          console.error("Phone PeerJS error:", error);
+          setStatus("phone", "disconnected", "DISCONNECTED");
+        });
+      }
+
+      function connectToComputer() {
+        if (!joinParam) return;
+        setStatus("phone", "waiting", "CONNECTING");
+        phone.connection = phone.peer.connect(joinParam, {
+          reliable: true,
+          serialization: "json"
+        });
+
+        phone.connection.on("open", () => {
+          setStatus("phone", "connected", "CONNECTED");
+          sendJSON(phone.connection, "hello");
+          document.getElementById("phoneNow").textContent = "CONNECTED";
+        });
+
+        receiveJSON(phone.connection, message => {
+          if (message.type === "welcome") {
+            applyWelcome(message.payload);
+          } else if (message.type === "grid") {
+            phone.grid = message.payload.grid;
+            renderPhoneGrid();
+          } else if (message.type === "pixel") {
+            const p = message.payload;
+            if (p.active) {
+              phone.grid[p.row][p.col] = { owner: p.owner, colorIndex: p.colorIndex };
+            } else {
+              phone.grid[p.row][p.col] = null;
+            }
+            renderPhoneGrid();
+          } else if (message.type === "players") {
+            // Roster is shown on the computer only; data remains available for future UI.
+          }
+        });
+
+        phone.connection.on("close", () => setStatus("phone", "disconnected", "DISCONNECTED"));
+        phone.connection.on("error", error => {
+          console.warn("Phone connection error:", error);
+          setStatus("phone", "disconnected", "DISCONNECTED");
+        });
+      }
+
+      function reconnectPhone() {
+        if (phone.connection) phone.connection.close();
+        createPhonePeer();
+      }
+
+      function applyWelcome(payload) {
+        phone.player = payload.player;
+        phone.grid = payload.grid;
+        const palette = PALETTE[phone.player.colorIndex];
+        document.getElementById("identitySwatch").style.background = palette.color;
+        document.getElementById("playerName").textContent = phone.player.name;
+        document.getElementById("soundName").textContent = palette.sound + " SOUND";
+        renderPhoneGrid();
+      }
+
+      function bindPhoneControls() {
+        document.getElementById("phoneReconnect").addEventListener("click", reconnectPhone);
+        document.getElementById("clearMyPixels").addEventListener("click", () => {
+          sendJSON(phone.connection, "clear");
+        });
+        document.getElementById("phoneStartSound").addEventListener("click", () => {
+          // Phones request no sensor or camera permissions. Audio is optional feedback.
+          const context = window.AudioContext || window.webkitAudioContext;
+          if (context && !phone.audio) phone.audio = new context();
+          if (phone.audio?.state === "suspended") phone.audio.resume();
+          document.getElementById("phoneStartSound").textContent = "READY";
+        });
+        document.getElementById("previousStep").addEventListener("click", () => {
+          phone.selectedStep = (phone.selectedStep + COLS - 1) % COLS;
+          updateStepReadout();
+        });
+        document.getElementById("nextStep").addEventListener("click", () => {
+          phone.selectedStep = (phone.selectedStep + 1) % COLS;
+          updateStepReadout();
+        });
+      }
+
+      function buildPhoneGrid() {
+        if (isPhone) {
+          const gridElement = document.getElementById("phoneGrid");
+          gridElement.innerHTML = "";
+          for (let row = 0; row < ROWS; row++) {
+            for (let col = 0; col < COLS; col++) {
+              const pixel = document.createElement("button");
+              pixel.type = "button";
+              pixel.className = "phone-pixel";
+              pixel.dataset.row = row;
+              pixel.dataset.col = col;
+              pixel.setAttribute("aria-label", "Row " + (row + 1) + ", step " + (col + 1));
+              pixel.addEventListener("click", () => togglePhonePixel(row, col));
+              gridElement.appendChild(pixel);
+            }
+          }
+        }
+      }
+
+      function togglePhonePixel(row, col) {
+        if (!phone.player) {
+          document.getElementById("phoneNow").textContent = "WAITING FOR HOST";
+          return;
+        }
+        const existing = phone.grid[row][col];
+        const isMine = existing?.owner === phone.player.id;
+        const active = !isMine;
+        sendJSON(phone.connection, "pixel", { row, col, active });
+
+        if (active) {
+          phone.grid[row][col] = { owner: phone.player.id, colorIndex: phone.player.colorIndex };
+        } else {
+          phone.grid[row][col] = null;
+        }
+        phone.selectedStep = col;
+        phone.selectedRow = row;
+        updateStepReadout();
+        renderPhoneGrid();
+        updatePhoneReadout(row, col, active);
+      }
+
+      function renderPhoneGrid() {
+        if (!isPhone) return;
+        const pixels = document.getElementById("phoneGrid").children;
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) {
+            const pixel = pixels[row * COLS + col];
+            const cell = phone.grid[row][col];
+            pixel.classList.toggle("on", Boolean(cell));
+            if (cell) {
+              pixel.style.background = PALETTE[cell.colorIndex].color;
+            } else {
+              pixel.style.background = "transparent";
+            }
+            if (col === phone.selectedStep) pixel.style.borderRight = "3px solid #f3ecc7";
+            else pixel.style.borderRight = "";
+          }
+        }
+      }
+
+      function updateStepReadout() {
+        document.getElementById("stepReadout").textContent =
+          String(phone.selectedStep + 1).padStart(2, "0");
+        document.getElementById("phoneNow").textContent =
+          "STEP " + String(phone.selectedStep + 1).padStart(2, "0");
+      }
+
+      function updatePhoneReadout(row, col, active) {
+        const palette = PALETTE[phone.player.colorIndex];
+        const semitone = PITCHES[row].toFixed(1);
+        document.getElementById("phoneNow").textContent =
+          (active ? "ADDED " : "REMOVED ") + "· " + palette.sound +
+          " · " + semitone + " Hz · STEP " + String(col + 1).padStart(2, "0");
+      }
+
+      // Start the role after CDN libraries are available.
+      waitForDependencies(() => {
+        if (isPhone) initPhone();
+        else initComputer();
+      });
+    })();
+  </script>
+</body>
+</html>
